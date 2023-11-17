@@ -2,7 +2,7 @@ using System.Runtime.Intrinsics.X86;
 using System.Runtime.Intrinsics;
 using System.Runtime.CompilerServices;
 
-public class Tiaoxin
+public class OptimisedTiaoxin
 {
     private Vector128<byte>[] T3;
     private Vector128<byte>[] T4;
@@ -12,7 +12,7 @@ public class Tiaoxin
     private Vector128<byte> K;
     private Vector128<byte> IV;
 
-    public Tiaoxin(Vector128<byte> k, Vector128<byte> iv)
+    public OptimisedTiaoxin(Vector128<byte> k, Vector128<byte> iv)
     {
         T3 = new Vector128<byte>[3];
         T4 = new Vector128<byte>[4];
@@ -55,12 +55,11 @@ public class Tiaoxin
         }
     }
 
-    public (Vector256<byte>[] C, Vector128<byte> T) Encode(Vector256<byte>[] M, Vector256<byte>[] AD)
+    public (Vector256<byte>[] C, Vector128<byte> T) Encode(Vector256<byte>[] M, Vector256<byte>[] AD, Vector256<byte>[] C)
     {
         Initialize(K, IV);
         ProcessAssociatedData(AD);
 
-        var C = new Vector256<byte>[M.Length];
         for (var i = 0; i < M.Length; i++)
         {
             var m1 = M[i].GetLower();
@@ -104,20 +103,17 @@ public class Tiaoxin
             ^ T6[5];
     }
 
-    public (Vector256<byte>[] M, Vector128<byte> T) Decode(Vector256<byte>[] C, Vector256<byte>[] AD)
+    public (Vector256<byte>[] M, Vector128<byte> T) Decode(Vector256<byte>[] C, Vector256<byte>[] AD, Vector256<byte>[] M)
     {
         Initialize(K, IV);
         ProcessAssociatedData(AD);
 
-        var M = new Vector256<byte>[C.Length];
         for (var i = 0; i < C.Length; ++i)
         {
             Update(Vector128<byte>.Zero, Vector128<byte>.Zero, Vector128<byte>.Zero);
-            var c1 = C[i].GetLower();
-            var c2 = C[i].GetUpper();
 
-            var m1 = c1 ^ T3[0] ^ T3[2] ^ T4[1] ^ (T6[3] & T4[3]);
-            var m2 = c2 ^ T6[0] ^ T4[2] ^ T3[1] ^ (T6[5] & T3[2]) ^ m1;
+            var m1 = C[i].GetLower() ^ T3[0] ^ T3[2] ^ T4[1] ^ (T6[3] & T4[3]);
+            var m2 = C[i].GetUpper() ^ T6[0] ^ T4[2] ^ T3[1] ^ (T6[5] & T3[2]) ^ m1;
 
             T3[0] = T3[0] ^ m1;
             T4[0] = T4[0] ^ m2;
@@ -129,24 +125,10 @@ public class Tiaoxin
 
         var T = MakeTag(AD, M);
 
-        return (M.ToArray(), T);
+        return (M, T);
     }
-
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private Vector128<byte>[] Round(Vector128<byte>[] T, Vector128<byte> M)
-    {
-        int s = T.Length;
-        Vector128<byte>[] T_new = new Vector128<byte>[s];
-        T_new[0] = Aes.Encrypt(T[s - 1], T[0]) ^ M;
-        T_new[1] = Aes.Encrypt(T[0], Z0);
-        for (int i = 2; i < s; i++)
-        {
-            T_new[i] = T[i - 1];
-        }
-        return T_new;
-    }
-
     private void InPlaceRound(Vector128<byte>[] T, Vector128<byte> M)
     {
         int s = T.Length;
@@ -159,14 +141,6 @@ public class Tiaoxin
             T[i] = lastTi;
             lastTi = temp;
         }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void AllocatingUpdate(Vector128<byte> m0, Vector128<byte> m1, Vector128<byte> m2)
-    {
-        T3 = Round(T3, m0);
-        T4 = Round(T4, m1);
-        T6 = Round(T6, m2);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
