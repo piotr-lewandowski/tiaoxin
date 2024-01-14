@@ -1,8 +1,7 @@
-using System;
 using System.Runtime.Intrinsics;
 using System.Security.Cryptography;
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Running;
+using Tiaoxin;
 
 namespace Benchmarks;
 
